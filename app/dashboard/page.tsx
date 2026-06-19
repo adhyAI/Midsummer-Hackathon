@@ -6,18 +6,22 @@ import Vapi from '@vapi-ai/web';
 import { createClient } from '@insforge/sdk';
 import {
   Mic, MicOff, Upload, Terminal, Loader2, Radio,
-  LogOut, User, Copy, Check, ChevronRight,
+  LogOut, User, Copy, Check, Send, Paperclip,
 } from 'lucide-react';
 import { useAuth, getInsforgeClient } from '../providers';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-type TranscriptEntry = { role: 'user' | 'assistant'; text: string; ts: number };
-type PanelState = 'upload' | 'sql';
+type MsgRole = 'user' | 'assistant' | 'system';
+type Message = { id: number; role: MsgRole; text: string };
+type RightTab = 'voice' | 'workspace';
 
 const FALLBACK_SCHEMA_URL =
   'https://raw.githubusercontent.com/bregman-arie/devops-exercises/master/images/db_schema_example.png';
+
+let msgId = 0;
+const nextId = () => ++msgId;
 
 // ---------------------------------------------------------------------------
 // Dashboard
@@ -28,14 +32,28 @@ export default function Dashboard() {
 
   const vapiRef = useRef<Vapi | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const transcriptEndRef = useRef<HTMLDivElement>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
   const imageUrlRef = useRef<string>(FALLBACK_SCHEMA_URL);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Voice state
   const [callActive, setCallActive] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
-  const [panelState, setPanelState] = useState<PanelState>('upload');
+
+  // Chat (left panel)
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: nextId(),
+      role: 'system',
+      text: "Hi! I'm Alex, your Forward-Deployed Engineer. You can chat with me here or start a voice session on the right. Upload your DB schema in the Workspace tab, then tell me what's going wrong.",
+    },
+  ]);
+  const [inputText, setInputText] = useState('');
+  const [sending, setSending] = useState(false);
+
+  // Right panel
+  const [rightTab, setRightTab] = useState<RightTab>('voice');
   const [sqlCode, setSqlCode] = useState('');
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
   const [uploadPreview, setUploadPreview] = useState<string | null>(null);
@@ -47,19 +65,19 @@ export default function Dashboard() {
     if (!authLoading && !user) router.replace('/auth?mode=signin');
   }, [user, authLoading, router]);
 
-  // Keep image URL ref fresh
+  // Keep image ref fresh
   useEffect(() => {
     imageUrlRef.current = uploadedImageUrl ?? FALLBACK_SCHEMA_URL;
   }, [uploadedImageUrl]);
 
-  // Auto-scroll transcript
+  // Auto-scroll chat
   useEffect(() => {
-    transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [transcript]);
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
-  // Auto-switch to SQL panel when code arrives
+  // Switch to workspace tab when SQL arrives
   useEffect(() => {
-    if (sqlCode) setPanelState('sql');
+    if (sqlCode) setRightTab('workspace');
   }, [sqlCode]);
 
   // ── Insforge Realtime ──────────────────────────────────────────────────────
@@ -68,7 +86,6 @@ export default function Dashboard() {
       baseUrl: process.env.NEXT_PUBLIC_INSFORGE_URL!,
       anonKey: process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY!,
     });
-
     let subscribed = false;
 
     async function setup() {
@@ -76,13 +93,22 @@ export default function Dashboard() {
       const res = await insforge.realtime.subscribe('sql-fixes');
       if (!res.ok) return;
       subscribed = true;
+
       insforge.realtime.on('sql_fix', (payload: { sql?: string }) => {
-        if (payload?.sql) setSqlCode(payload.sql);
+        if (!payload?.sql) return;
+        setSqlCode(payload.sql);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: nextId(),
+            role: 'assistant',
+            text: "I've pushed a SQL migration script to your Workspace tab. Switch over to review and copy it.",
+          },
+        ]);
       });
     }
 
     setup().catch(console.error);
-
     return () => {
       if (subscribed) insforge.realtime.unsubscribe('sql-fixes');
       insforge.realtime.disconnect();
@@ -102,9 +128,9 @@ export default function Dashboard() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vapi.on('message', (msg: any) => {
       if (msg.type === 'transcript' && msg.transcriptType === 'final') {
-        setTranscript((prev) => [
+        setMessages((prev) => [
           ...prev,
-          { role: msg.role, text: msg.transcript, ts: Date.now() },
+          { id: nextId(), role: msg.role === 'user' ? 'user' : 'assistant', text: msg.transcript },
         ]);
       }
     });
@@ -121,11 +147,48 @@ export default function Dashboard() {
     if (!vapi) return;
     if (callActive) { vapi.stop(); return; }
     setConnecting(true);
-    setTranscript([]);
     await vapi.start(process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID!, {
       variableValues: { schema_image_url: imageUrlRef.current },
     });
   }, [callActive]);
+
+  const sendTextMessage = useCallback(async () => {
+    const text = inputText.trim();
+    if (!text || sending) return;
+
+    setMessages((prev) => [...prev, { id: nextId(), role: 'user', text }]);
+    setInputText('');
+    setSending(true);
+
+    // If voice is active, inject into the call
+    if (vapiRef.current && callActive) {
+      vapiRef.current.send({ type: 'add-message', message: { role: 'user', content: text } });
+      setSending(false);
+      return;
+    }
+
+    // Otherwise echo a canned response (replace with actual LLM call if needed)
+    await new Promise((r) => setTimeout(r, 800));
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: nextId(),
+        role: 'assistant',
+        text: "Got it. Start a voice session on the right to talk this through live, or upload your schema in the Workspace tab so I can analyse it.",
+      },
+    ]);
+    setSending(false);
+  }, [inputText, sending, callActive]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendTextMessage();
+      }
+    },
+    [sendTextMessage]
+  );
 
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -137,7 +200,13 @@ export default function Dashboard() {
       fd.append('file', file);
       const res = await fetch('/api/upload', { method: 'POST', body: fd });
       const data = (await res.json()) as { url?: string };
-      if (data.url) setUploadedImageUrl(data.url);
+      if (data.url) {
+        setUploadedImageUrl(data.url);
+        setMessages((prev) => [
+          ...prev,
+          { id: nextId(), role: 'system', text: 'Schema image uploaded. Start a voice session and describe your issue — Alex will analyse it.' },
+        ]);
+      }
     } catch (err) {
       console.error('Upload failed', err);
     } finally {
@@ -146,8 +215,7 @@ export default function Dashboard() {
   }, []);
 
   const handleSignOut = useCallback(async () => {
-    const insforge = getInsforgeClient();
-    await insforge.auth.signOut();
+    await getInsforgeClient().auth.signOut();
     await refresh();
     router.replace('/');
   }, [refresh, router]);
@@ -161,7 +229,7 @@ export default function Dashboard() {
   if (authLoading) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <Loader2 size={28} className="text-violet-400 animate-spin" />
+        <Loader2 size={24} className="text-violet-400 animate-spin" />
       </div>
     );
   }
@@ -172,291 +240,285 @@ export default function Dashboard() {
   return (
     <div className="h-screen bg-gray-950 text-gray-100 flex flex-col overflow-hidden">
 
-      {/* ── Top nav ── */}
-      <header className="border-b border-gray-800 px-5 py-3 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center">
-            <Terminal size={13} className="text-white" />
+      {/* ── Nav ── */}
+      <header className="border-b border-gray-800 px-5 h-12 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-md bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center">
+            <Terminal size={12} className="text-white" />
           </div>
           <span className="font-semibold text-sm tracking-tight">ArchitectAI</span>
           {callActive && (
-            <div className="flex items-center gap-1.5 text-green-400 text-xs ml-2 bg-green-400/10 px-2.5 py-1 rounded-full">
-              <Radio size={11} className="animate-pulse" />
-              Live
-            </div>
+            <span className="flex items-center gap-1 text-[11px] text-green-400 bg-green-400/10 border border-green-400/20 px-2 py-0.5 rounded-full ml-1">
+              <Radio size={10} className="animate-pulse" /> Live
+            </span>
           )}
         </div>
-
-        <div className="flex items-center gap-3">
-          {user && (
-            <div className="flex items-center gap-2 text-xs text-gray-500">
-              <User size={13} />
-              <span>{(user as { email: string }).email}</span>
-            </div>
-          )}
-          <button
-            onClick={handleSignOut}
-            className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 transition"
-          >
-            <LogOut size={13} /> Sign out
+        <div className="flex items-center gap-4">
+          <span className="text-xs text-gray-600 flex items-center gap-1.5">
+            <User size={12} /> {(user as { email: string })?.email}
+          </span>
+          <button onClick={handleSignOut} className="text-xs text-gray-600 hover:text-gray-300 flex items-center gap-1 transition">
+            <LogOut size={12} /> Sign out
           </button>
         </div>
       </header>
 
-      {/* ── Main split ── */}
-      <main className="flex flex-1 overflow-hidden">
+      {/* ── Body ── */}
+      <div className="flex flex-1 overflow-hidden">
 
-        {/* ═══════════════════════════════════════════
-            LEFT — Conversation / Text window
-        ═══════════════════════════════════════════ */}
-        <section className="w-1/2 flex flex-col border-r border-gray-800 overflow-hidden">
-          {/* Section label */}
-          <div className="px-5 py-3 border-b border-gray-800/60 shrink-0">
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-600">
-              Conversation
-            </p>
+        {/* ══════════════════════════════════════════
+            LEFT — Chat / Text window
+        ══════════════════════════════════════════ */}
+        <div className="w-1/2 flex flex-col border-r border-gray-800 overflow-hidden">
+
+          {/* Header */}
+          <div className="px-4 h-10 border-b border-gray-800/60 flex items-center shrink-0">
+            <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-600">Chat</span>
           </div>
 
-          {/* Transcript scroll area */}
-          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-            {transcript.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center gap-3 text-gray-700 select-none">
-                <div className="w-12 h-12 rounded-2xl bg-gray-900 border border-gray-800 flex items-center justify-center mb-1">
-                  <Mic size={20} className="text-gray-600" />
-                </div>
-                <p className="text-sm font-medium text-gray-600">Start a session to see the conversation</p>
-                <p className="text-xs text-gray-700 max-w-[220px] leading-relaxed">
-                  Alex and Sarah will appear here as you speak.
-                </p>
-              </div>
-            ) : (
-              transcript.map((entry, i) => (
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+            {messages.map((msg) => {
+              if (msg.role === 'system') {
+                return (
+                  <div key={msg.id} className="flex justify-center">
+                    <p className="text-[11px] text-gray-600 bg-gray-900 border border-gray-800 rounded-lg px-3 py-1.5 text-center max-w-xs leading-relaxed">
+                      {msg.text}
+                    </p>
+                  </div>
+                );
+              }
+              return (
                 <div
-                  key={i}
-                  className={`flex gap-3 ${entry.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  key={msg.id}
+                  className={`flex gap-2.5 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
-                  {entry.role === 'assistant' && (
-                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-bold">
+                  {msg.role === 'assistant' && (
+                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center shrink-0 mt-0.5 text-[9px] font-bold">
                       AI
                     </div>
                   )}
                   <div
-                    className={`max-w-[78%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-                      entry.role === 'user'
-                        ? 'bg-violet-600/20 text-violet-100 rounded-tr-sm'
-                        : 'bg-gray-800/80 text-gray-200 rounded-tl-sm'
+                    className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
+                      msg.role === 'user'
+                        ? 'bg-violet-600/25 text-violet-100 rounded-tr-sm'
+                        : 'bg-gray-800 text-gray-200 rounded-tl-sm'
                     }`}
                   >
-                    <span className="block text-[10px] font-semibold uppercase tracking-wider mb-1.5 opacity-40">
-                      {entry.role === 'user' ? 'You' : 'Alex / Sarah'}
-                    </span>
-                    {entry.text}
+                    {msg.text}
                   </div>
-                  {entry.role === 'user' && (
-                    <div className="w-7 h-7 rounded-full bg-gray-800 flex items-center justify-center shrink-0 mt-0.5">
-                      <User size={13} className="text-gray-500" />
+                </div>
+              );
+            })}
+            {sending && (
+              <div className="flex gap-2.5 justify-start">
+                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center shrink-0 text-[9px] font-bold">AI</div>
+                <div className="bg-gray-800 rounded-2xl rounded-tl-sm px-3.5 py-2.5 flex gap-1 items-center">
+                  {[0, 1, 2].map((n) => (
+                    <span key={n} className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: `${n * 0.15}s` }} />
+                  ))}
+                </div>
+              </div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
+
+          {/* Input bar */}
+          <div className="border-t border-gray-800 p-3 shrink-0">
+            <div className="flex items-end gap-2 bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 focus-within:border-violet-500/60 transition">
+              <button
+                onClick={() => { setRightTab('workspace'); fileInputRef.current?.click(); }}
+                className="text-gray-600 hover:text-gray-400 transition shrink-0 pb-0.5"
+                title="Upload schema"
+              >
+                <Paperclip size={16} />
+              </button>
+              <textarea
+                ref={textareaRef}
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Type a message… (Enter to send)"
+                rows={1}
+                className="flex-1 bg-transparent text-sm text-gray-200 placeholder-gray-600 resize-none focus:outline-none max-h-32 leading-relaxed"
+                style={{ scrollbarWidth: 'none' }}
+              />
+              <button
+                onClick={sendTextMessage}
+                disabled={!inputText.trim() || sending}
+                className="shrink-0 w-7 h-7 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition"
+              >
+                <Send size={13} className="text-white" />
+              </button>
+            </div>
+            <p className="text-[10px] text-gray-700 mt-1.5 px-1">
+              Shift+Enter for new line · Voice transcript appears here too
+            </p>
+          </div>
+        </div>
+
+        {/* ══════════════════════════════════════════
+            RIGHT — Voice | Workspace tabs
+        ══════════════════════════════════════════ */}
+        <div className="w-1/2 flex flex-col overflow-hidden">
+
+          {/* Tab bar */}
+          <div className="border-b border-gray-800 px-4 h-10 flex items-end gap-0 shrink-0">
+            {([['voice', 'Voice'], ['workspace', 'Workspace']] as [RightTab, string][]).map(([tab, label]) => (
+              <button
+                key={tab}
+                onClick={() => setRightTab(tab)}
+                className={`relative px-4 h-full text-xs font-medium transition border-b-2 ${
+                  rightTab === tab
+                    ? 'text-gray-100 border-violet-500'
+                    : 'text-gray-600 border-transparent hover:text-gray-400'
+                }`}
+              >
+                {label}
+                {tab === 'workspace' && sqlCode && (
+                  <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-green-400 rounded-full" />
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* ── Voice tab ── */}
+          {rightTab === 'voice' && (
+            <div className="flex-1 flex flex-col items-center justify-center gap-8 p-8">
+              {/* Big mic */}
+              <div className="relative">
+                {/* Pulse ring when active */}
+                {callActive && (
+                  <div className="absolute inset-0 rounded-full bg-red-500/20 animate-ping" />
+                )}
+                <button
+                  onClick={toggleCall}
+                  disabled={connecting}
+                  className={`relative w-24 h-24 rounded-full flex items-center justify-center transition-all duration-300 shadow-2xl ${
+                    callActive
+                      ? 'bg-red-500 hover:bg-red-400 shadow-red-500/40'
+                      : connecting
+                      ? 'bg-yellow-500/80 cursor-wait shadow-yellow-500/20'
+                      : 'bg-violet-600 hover:bg-violet-500 shadow-violet-600/40 hover:scale-105'
+                  }`}
+                >
+                  {connecting ? (
+                    <Loader2 size={32} className="animate-spin text-white" />
+                  ) : callActive ? (
+                    <MicOff size={32} className="text-white" />
+                  ) : (
+                    <Mic size={32} className="text-white" />
+                  )}
+                </button>
+              </div>
+
+              {/* Status text */}
+              <div className="text-center">
+                <p className="text-base font-semibold text-gray-200">
+                  {callActive ? 'Session active' : connecting ? 'Connecting…' : 'Ready to connect'}
+                </p>
+                <p className="text-sm text-gray-500 mt-1">
+                  {callActive
+                    ? 'Click the mic to end the session'
+                    : connecting
+                    ? 'Setting up secure voice connection…'
+                    : 'Click the mic to start talking with Alex'}
+                </p>
+              </div>
+
+              {/* Speaking wave */}
+              {isSpeaking && (
+                <div className="flex items-end gap-[4px]">
+                  {[14, 22, 18, 28, 16, 24, 12].map((h, n) => (
+                    <span
+                      key={n}
+                      className="w-[4px] rounded-full bg-cyan-400 animate-bounce"
+                      style={{ height: h, animationDelay: `${n * 0.07}s` }}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Upload shortcut */}
+              {!uploadedImageUrl && (
+                <button
+                  onClick={() => { setRightTab('workspace'); fileInputRef.current?.click(); }}
+                  className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-400 border border-gray-800 hover:border-gray-700 rounded-xl px-4 py-2.5 transition"
+                >
+                  <Upload size={14} /> Upload schema first
+                </button>
+              )}
+              {uploadedImageUrl && (
+                <div className="flex items-center gap-2 text-xs text-green-400 bg-green-400/5 border border-green-400/15 rounded-xl px-4 py-2">
+                  <span className="w-1.5 h-1.5 bg-green-400 rounded-full" />
+                  Schema ready — Alex will analyse it during the call
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Workspace tab ── */}
+          {rightTab === 'workspace' && (
+            <div className="flex-1 flex flex-col gap-3 p-4 overflow-hidden">
+              {/* Schema upload */}
+              <div className="shrink-0">
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-600 mb-2">Schema Image</p>
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`relative border border-dashed rounded-xl cursor-pointer transition-all group overflow-hidden ${
+                    uploadPreview
+                      ? 'border-gray-700 h-36'
+                      : 'border-gray-800 hover:border-violet-500/40 hover:bg-violet-500/5 h-24 flex items-center justify-center gap-3'
+                  }`}
+                >
+                  {uploadPreview ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={uploadPreview} alt="Schema" className="w-full h-full object-contain" />
+                  ) : (
+                    <>
+                      <Upload size={16} className="text-gray-600 group-hover:text-violet-400 transition" />
+                      <span className="text-sm text-gray-600 group-hover:text-gray-400 transition">Upload DB schema screenshot</span>
+                    </>
+                  )}
+                  {uploading && (
+                    <div className="absolute inset-0 bg-gray-950/80 flex items-center justify-center">
+                      <Loader2 size={20} className="text-violet-400 animate-spin" />
                     </div>
                   )}
                 </div>
-              ))
-            )}
-            <div ref={transcriptEndRef} />
-          </div>
+                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileSelect} />
+              </div>
 
-          {/* Typing / speaking indicator */}
-          {isSpeaking && (
-            <div className="px-5 pb-3 shrink-0">
-              <div className="flex items-center gap-2 text-cyan-400 text-xs bg-cyan-400/5 border border-cyan-400/10 rounded-xl px-3 py-2">
-                <span className="inline-flex gap-[3px] items-end">
-                  {[10, 16, 12].map((h, n) => (
-                    <span
-                      key={n}
-                      className="w-[3px] rounded-full bg-cyan-400 animate-bounce"
-                      style={{ height: h, animationDelay: `${n * 0.12}s` }}
-                    />
-                  ))}
-                </span>
-                Alex is speaking…
+              {/* Divider */}
+              <div className="border-t border-gray-800/60 shrink-0" />
+
+              {/* SQL output */}
+              <div className="flex-1 flex flex-col gap-2 overflow-hidden">
+                <div className="flex items-center justify-between shrink-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-600">Generated Migration</p>
+                  {sqlCode && (
+                    <button onClick={copySQL} className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300 transition">
+                      {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
+                      {copied ? 'Copied' : 'Copy'}
+                    </button>
+                  )}
+                </div>
+
+                {sqlCode ? (
+                  <pre className="flex-1 overflow-auto bg-gray-900 border border-gray-800 rounded-xl p-4 text-sm text-green-300 font-mono leading-relaxed whitespace-pre-wrap">
+                    {sqlCode}
+                  </pre>
+                ) : (
+                  <div className="flex-1 flex flex-col items-center justify-center gap-2 text-gray-700 border border-dashed border-gray-800 rounded-xl">
+                    <Terminal size={22} className="text-gray-800" />
+                    <p className="text-xs text-gray-700">SQL fix will appear here after analysis</p>
+                  </div>
+                )}
               </div>
             </div>
           )}
-        </section>
-
-        {/* ═══════════════════════════════════════════
-            RIGHT — Voice + Dynamic panel
-        ═══════════════════════════════════════════ */}
-        <section className="w-1/2 flex flex-col overflow-hidden">
-
-          {/* ── Voice control strip ── */}
-          <div className="border-b border-gray-800 px-5 py-4 shrink-0 flex items-center gap-4">
-            {/* Mic button */}
-            <button
-              onClick={toggleCall}
-              disabled={connecting}
-              className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-200 shadow-lg shrink-0 ${
-                callActive
-                  ? 'bg-red-500 hover:bg-red-400 shadow-red-500/30'
-                  : connecting
-                  ? 'bg-yellow-500 cursor-wait shadow-yellow-500/20'
-                  : 'bg-violet-600 hover:bg-violet-500 shadow-violet-500/30'
-              }`}
-            >
-              {connecting ? (
-                <Loader2 size={20} className="animate-spin text-white" />
-              ) : callActive ? (
-                <MicOff size={20} className="text-white" />
-              ) : (
-                <Mic size={20} className="text-white" />
-              )}
-            </button>
-
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-gray-200">
-                {callActive ? 'Session active' : connecting ? 'Connecting…' : 'Start voice session'}
-              </p>
-              <p className="text-xs text-gray-600 mt-0.5">
-                {callActive
-                  ? 'Speak naturally — Alex is listening'
-                  : 'Click the mic to connect with your AI FDE'}
-              </p>
-            </div>
-
-            {callActive && (
-              <div className="shrink-0 flex gap-[3px] items-end">
-                {[8, 14, 10, 16, 9].map((h, n) => (
-                  <span
-                    key={n}
-                    className="w-[3px] rounded-full bg-violet-400 animate-bounce opacity-80"
-                    style={{ height: h, animationDelay: `${n * 0.08}s` }}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* ── Dynamic panel ── */}
-          <div className="flex-1 flex flex-col overflow-hidden">
-            {/* Tab bar */}
-            <div className="flex items-center gap-1 px-4 pt-3 pb-0 shrink-0">
-              {(['upload', 'sql'] as PanelState[]).map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setPanelState(tab)}
-                  className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium transition ${
-                    panelState === tab
-                      ? tab === 'upload'
-                        ? 'bg-violet-600/20 text-violet-300'
-                        : 'bg-cyan-600/20 text-cyan-300'
-                      : 'text-gray-600 hover:text-gray-400'
-                  }`}
-                >
-                  {tab === 'upload' ? 'Schema Upload' : 'Generated Fix'}
-                  {tab === 'sql' && sqlCode && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
-                  )}
-                </button>
-              ))}
-            </div>
-
-            {/* Panel content */}
-            <div className="flex-1 overflow-hidden p-4">
-
-              {/* Panel A — Upload */}
-              {panelState === 'upload' && (
-                <div className="h-full flex flex-col gap-3">
-                  <p className="text-xs text-gray-600">
-                    Upload your DB schema screenshot so Alex can analyse it during the call.
-                  </p>
-                  <div
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex-1 border-2 border-dashed border-gray-800 rounded-2xl flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-violet-500/50 hover:bg-violet-500/5 transition-all group relative overflow-hidden"
-                  >
-                    {uploadPreview ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={uploadPreview}
-                        alt="Schema"
-                        className="object-contain max-h-full max-w-full rounded-xl"
-                      />
-                    ) : (
-                      <>
-                        <div className="w-12 h-12 rounded-2xl bg-gray-900 border border-gray-800 group-hover:border-violet-500/30 flex items-center justify-center transition">
-                          <Upload size={20} className="text-gray-600 group-hover:text-violet-400 transition" />
-                        </div>
-                        <div className="text-center">
-                          <p className="text-sm text-gray-500 group-hover:text-gray-300 transition font-medium">
-                            Click to upload schema
-                          </p>
-                          <p className="text-xs text-gray-700 mt-0.5">PNG, JPG, WEBP · max 10 MB</p>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-xs text-gray-700">
-                          <ChevronRight size={12} /> Then start a voice session
-                        </div>
-                      </>
-                    )}
-                    {uploading && (
-                      <div className="absolute inset-0 bg-gray-950/80 backdrop-blur-sm flex items-center justify-center rounded-2xl">
-                        <Loader2 size={28} className="text-violet-400 animate-spin" />
-                      </div>
-                    )}
-                  </div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleFileSelect}
-                  />
-                  {uploadedImageUrl && (
-                    <div className="flex items-center gap-2 text-xs text-green-400 bg-green-400/5 border border-green-400/10 rounded-xl px-3 py-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />
-                      Schema ready — Alex will analyse this during the call
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Panel B — SQL fix */}
-              {panelState === 'sql' && (
-                <div className="h-full flex flex-col gap-3">
-                  {sqlCode ? (
-                    <>
-                      <div className="flex items-center justify-between shrink-0">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                          <p className="text-xs font-semibold text-green-400">
-                            Migration script — pushed by Alex
-                          </p>
-                        </div>
-                        <button
-                          onClick={copySQL}
-                          className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 transition"
-                        >
-                          {copied ? <Check size={13} className="text-green-400" /> : <Copy size={13} />}
-                          {copied ? 'Copied!' : 'Copy'}
-                        </button>
-                      </div>
-                      <pre className="flex-1 overflow-auto bg-gray-900 border border-gray-800 rounded-2xl p-4 text-sm text-green-300 font-mono leading-relaxed whitespace-pre-wrap">
-                        {sqlCode}
-                      </pre>
-                    </>
-                  ) : (
-                    <div className="h-full flex flex-col items-center justify-center gap-3 text-gray-700 select-none">
-                      <div className="w-12 h-12 rounded-2xl bg-gray-900 border border-gray-800 flex items-center justify-center">
-                        <Terminal size={20} className="text-gray-600" />
-                      </div>
-                      <p className="text-sm font-medium text-gray-600">Waiting for analysis</p>
-                      <p className="text-xs text-gray-700 text-center max-w-[200px] leading-relaxed">
-                        Upload your schema and tell Alex you&apos;re hitting connection limits.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
-      </main>
+        </div>
+      </div>
     </div>
   );
 }

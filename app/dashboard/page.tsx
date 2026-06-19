@@ -334,7 +334,8 @@ export default function Dashboard() {
     <div className="h-screen bg-gray-50 text-gray-900 flex flex-col overflow-hidden">
 
       {/* Nav */}
-      <header className="border-b border-gray-200 px-5 h-12 flex items-center justify-between shrink-0 bg-white shadow-sm">
+      <header className="border-b border-gray-200 px-5 h-13 flex items-center justify-between shrink-0 bg-white/90 backdrop-blur-xl shadow-sm" style={{ height: 52 }}>
+        <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-violet-500 via-fuchsia-500 to-cyan-500" />
         <div className="flex items-center gap-2">
           <FaduLogo />
           <div className="leading-tight">
@@ -464,8 +465,8 @@ export default function Dashboard() {
                   )}
                   <div className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
                     msg.role === 'user'
-                      ? 'bg-violet-600 text-white rounded-tr-sm'
-                      : 'bg-gray-100 text-gray-800 rounded-tl-sm border border-gray-200'
+                      ? 'bg-gradient-to-br from-violet-600 to-violet-700 text-white rounded-tr-sm shadow-md shadow-violet-500/20'
+                      : 'bg-white text-gray-800 rounded-tl-sm border border-gray-100 shadow-sm'
                   }`}>
                     {msg.text}
                   </div>
@@ -508,7 +509,7 @@ export default function Dashboard() {
               <button
                 onClick={sendTextMessage}
                 disabled={!inputText.trim() || sending}
-                className="shrink-0 w-7 h-7 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition"
+                className="shrink-0 w-7 h-7 rounded-lg bg-gradient-to-br from-violet-600 to-cyan-500 hover:from-violet-700 hover:to-cyan-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition shadow-md shadow-violet-500/20"
               >
                 <Send size={13} className="text-white" />
               </button>
@@ -560,7 +561,7 @@ export default function Dashboard() {
                       ? 'bg-red-500 hover:bg-red-600 shadow-red-500/30'
                       : connecting
                       ? 'bg-yellow-400/80 cursor-wait shadow-yellow-400/20'
-                      : 'bg-violet-600 hover:bg-violet-700 shadow-violet-600/30 hover:scale-105'
+                      : 'bg-gradient-to-br from-violet-600 to-cyan-500 hover:from-violet-700 hover:to-cyan-600 shadow-violet-500/40 hover:scale-105'
                   }`}
                 >
                   {connecting ? <Loader2 size={32} className="animate-spin text-white" />

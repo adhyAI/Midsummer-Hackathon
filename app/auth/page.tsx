@@ -111,25 +111,30 @@ function AuthForm() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900 flex flex-col items-center justify-center px-4">
+    <div className="min-h-screen text-gray-900 flex flex-col items-center justify-center px-4 relative overflow-hidden">
+      {/* Background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-violet-50 via-white to-cyan-50" />
+      <div className="blob-float absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full bg-violet-300/20 blur-3xl pointer-events-none" />
+      <div className="blob-float2 absolute -bottom-40 right-0 w-[500px] h-[500px] rounded-full bg-cyan-300/20 blur-3xl pointer-events-none" />
+
       <Link
         href="/"
-        className="absolute top-6 left-6 flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition"
+        className="absolute top-6 left-6 flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition z-10"
       >
         <ArrowLeft size={14} /> Home
       </Link>
 
       {/* Logo */}
-      <div className="flex items-center gap-2.5 mb-8">
+      <div className="relative flex items-center gap-2.5 mb-8">
         <FaduLogo />
         <div>
-          <span className="font-bold text-lg tracking-tight text-gray-900">Fadu</span>
-          <span className="block text-[10px] text-violet-600 font-medium">The Forward Avengers</span>
+          <span className="font-extrabold text-lg tracking-tight text-gray-900">Fadu</span>
+          <span className="block text-[10px] text-violet-600 font-semibold">The Forward Avengers</span>
         </div>
       </div>
 
-      <div className="w-full max-w-sm">
-        <div className="bg-white border border-gray-200 rounded-2xl p-8 shadow-sm">
+      <div className="relative w-full max-w-sm">
+        <div className="bg-white/80 backdrop-blur-xl border border-white/60 rounded-3xl p-8 shadow-2xl shadow-violet-500/10">
           <h1 className="text-xl font-bold mb-1 text-gray-900">
             {mode === 'signin' ? 'Welcome back' : 'Create your account'}
           </h1>
@@ -206,7 +211,7 @@ function AuthForm() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-violet-600 hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition flex items-center justify-center gap-2 mt-1"
+              className="w-full bg-gradient-to-r from-violet-600 to-cyan-500 hover:from-violet-700 hover:to-cyan-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 mt-1 shadow-lg shadow-violet-500/25"
             >
               {loading ? (
                 <Loader2 size={16} className="animate-spin" />

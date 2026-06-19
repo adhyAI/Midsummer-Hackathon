@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Vapi from '@vapi-ai/web';
 import { createClient } from '@insforge/sdk';
 import {
-  Mic, MicOff, Upload, Loader2, Radio,
+  Upload, Loader2, Radio,
   LogOut, User, Copy, Check, Send, Paperclip, Plus, History, X,
 } from 'lucide-react';
 import { useAuth, getInsforgeClient } from '../providers';
@@ -50,6 +50,51 @@ function loadSessions(): StoredSession[] {
 
 function saveSessions(sessions: StoredSession[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions.slice(0, MAX_SESSIONS)));
+}
+
+function MicGraphic({ active, speaking }: { active: boolean; speaking: boolean }) {
+  return (
+    <svg width="52" height="56" viewBox="0 0 52 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Sound arcs — left */}
+      {(active || speaking) && (
+        <>
+          <path d="M12 18 Q6 28 12 38" stroke="white" strokeWidth="2" strokeLinecap="round" strokeOpacity={speaking ? 0.9 : 0.5}/>
+          <path d="M6 13 Q-2 28 6 43" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeOpacity={speaking ? 0.5 : 0.25}/>
+        </>
+      )}
+      {/* Sound arcs — right */}
+      {(active || speaking) && (
+        <>
+          <path d="M40 18 Q46 28 40 38" stroke="white" strokeWidth="2" strokeLinecap="round" strokeOpacity={speaking ? 0.9 : 0.5}/>
+          <path d="M46 13 Q54 28 46 43" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeOpacity={speaking ? 0.5 : 0.25}/>
+        </>
+      )}
+      {/* Mic capsule */}
+      <rect x="18" y="4" width="16" height="26" rx="8" fill="white" fillOpacity="0.95"/>
+      {/* Mic body highlight */}
+      <rect x="21" y="7" width="5" height="10" rx="2.5" fill="white" fillOpacity="0.35"/>
+      {/* Stand arc */}
+      <path d="M12 28 Q12 44 26 44 Q40 44 40 28" stroke="white" strokeWidth="2.5" strokeLinecap="round" fill="none" strokeOpacity="0.9"/>
+      {/* Stem */}
+      <line x1="26" y1="44" x2="26" y2="52" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeOpacity="0.9"/>
+      {/* Base */}
+      <line x1="18" y1="52" x2="34" y2="52" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeOpacity="0.9"/>
+    </svg>
+  );
+}
+
+function MicOffGraphic() {
+  return (
+    <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Diagonal slash */}
+      <line x1="8" y1="8" x2="40" y2="40" stroke="white" strokeWidth="3" strokeLinecap="round" strokeOpacity="0.7"/>
+      {/* Mic capsule (clipped by slash visually) */}
+      <rect x="16" y="3" width="16" height="24" rx="8" fill="white" fillOpacity="0.85"/>
+      <path d="M10 26 Q10 40 24 40 Q38 40 38 26" stroke="white" strokeWidth="2.5" strokeLinecap="round" fill="none" strokeOpacity="0.6"/>
+      <line x1="24" y1="40" x2="24" y2="46" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeOpacity="0.6"/>
+      <line x1="16" y1="46" x2="32" y2="46" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeOpacity="0.6"/>
+    </svg>
+  );
 }
 
 function FaduLogo() {
@@ -556,7 +601,7 @@ export default function Dashboard() {
                 <button
                   onClick={toggleCall}
                   disabled={connecting}
-                  className={`relative w-24 h-24 rounded-full flex items-center justify-center transition-all duration-300 shadow-xl ${
+                  className={`relative w-28 h-28 rounded-full flex items-center justify-center transition-all duration-300 shadow-xl ${
                     callActive
                       ? 'bg-red-500 hover:bg-red-600 shadow-red-500/30'
                       : connecting
@@ -565,8 +610,8 @@ export default function Dashboard() {
                   }`}
                 >
                   {connecting ? <Loader2 size={32} className="animate-spin text-white" />
-                    : callActive ? <MicOff size={32} className="text-white" />
-                    : <Mic size={32} className="text-white" />}
+                    : callActive ? <MicOffGraphic />
+                    : <MicGraphic active={callActive} speaking={isSpeaking} />}
                 </button>
               </div>
 

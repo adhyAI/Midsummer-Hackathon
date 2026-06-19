@@ -3,12 +3,9 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth, getInsforgeClient } from '../providers';
-import { Terminal, Loader2, Eye, EyeOff, ArrowLeft } from 'lucide-react';
+import { Loader2, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
-// ---------------------------------------------------------------------------
-// Google SVG icon
-// ---------------------------------------------------------------------------
 function GoogleIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -20,9 +17,15 @@ function GoogleIcon() {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Inner component that reads searchParams
-// ---------------------------------------------------------------------------
+function VapiLogo() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 32 32" fill="none">
+      <rect width="32" height="32" rx="8" fill="#5865F2"/>
+      <path d="M8 10h16M8 16h10M8 22h13" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
 function AuthForm() {
   const router = useRouter();
   const params = useSearchParams();
@@ -113,37 +116,32 @@ function AuthForm() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <Loader2 size={28} className="text-violet-400 animate-spin" />
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <Loader2 size={28} className="text-violet-600 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100 flex flex-col items-center justify-center px-4">
-      {/* Back to landing */}
+    <div className="min-h-screen bg-gray-50 text-gray-900 flex flex-col items-center justify-center px-4">
       <Link
         href="/"
-        className="absolute top-6 left-6 flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-300 transition"
+        className="absolute top-6 left-6 flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition"
       >
         <ArrowLeft size={14} /> Home
       </Link>
 
       {/* Logo */}
       <div className="flex items-center gap-2.5 mb-8">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-violet-500/20">
-          <Terminal size={17} className="text-white" />
-        </div>
-        <span className="font-bold text-lg tracking-tight">ArchitectAI</span>
+        <VapiLogo />
+        <span className="font-bold text-lg tracking-tight text-gray-900">Vapi FDE Team</span>
       </div>
 
       <div className="w-full max-w-sm">
-        {/* Card */}
-        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-8">
+        <div className="bg-white border border-gray-200 rounded-2xl p-8 shadow-sm">
           {step === 'verify' ? (
-            /* ── OTP verification step ── */
             <>
-              <h1 className="text-xl font-bold mb-1">Check your email</h1>
+              <h1 className="text-xl font-bold mb-1 text-gray-900">Check your email</h1>
               <p className="text-sm text-gray-500 mb-6">{info}</p>
 
               <form onSubmit={handleVerify} className="space-y-4">
@@ -154,14 +152,14 @@ function AuthForm() {
                   placeholder="6-digit code"
                   value={otp}
                   onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-center text-2xl tracking-[0.5em] font-mono focus:outline-none focus:border-violet-500 transition"
+                  className="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-center text-2xl tracking-[0.5em] font-mono focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition text-gray-900"
                   required
                 />
-                {error && <p className="text-sm text-red-400">{error}</p>}
+                {error && <p className="text-sm text-red-600">{error}</p>}
                 <button
                   type="submit"
                   disabled={loading || otp.length < 6}
-                  className="w-full bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition flex items-center justify-center gap-2"
+                  className="w-full bg-violet-600 hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition flex items-center justify-center gap-2"
                 >
                   {loading ? <Loader2 size={16} className="animate-spin" /> : 'Verify email'}
                 </button>
@@ -169,34 +167,33 @@ function AuthForm() {
 
               <button
                 onClick={() => setStep('form')}
-                className="mt-4 w-full text-sm text-gray-500 hover:text-gray-300 transition text-center"
+                className="mt-4 w-full text-sm text-gray-500 hover:text-gray-700 transition text-center"
               >
                 ← Back
               </button>
             </>
           ) : (
-            /* ── Sign in / Sign up form ── */
             <>
-              <h1 className="text-xl font-bold mb-1">
+              <h1 className="text-xl font-bold mb-1 text-gray-900">
                 {mode === 'signin' ? 'Welcome back' : 'Create your account'}
               </h1>
               <p className="text-sm text-gray-500 mb-6">
                 {mode === 'signin'
-                  ? 'Sign in to continue to ArchitectAI'
-                  : 'Start debugging your database with AI'}
+                  ? 'Sign in to talk to your Vapi FDE'
+                  : 'Get instant access to your Vapi FDE team'}
               </p>
 
               {/* OAuth buttons */}
               <div className="grid grid-cols-2 gap-3 mb-5">
                 <button
                   onClick={() => handleOAuth('google')}
-                  className="flex items-center justify-center gap-2 bg-gray-800 hover:bg-gray-750 border border-gray-700 hover:border-gray-600 rounded-xl py-2.5 text-sm font-medium transition"
+                  className="flex items-center justify-center gap-2 bg-white hover:bg-gray-50 border border-gray-300 hover:border-gray-400 rounded-xl py-2.5 text-sm font-medium transition text-gray-700"
                 >
                   <GoogleIcon /> Google
                 </button>
                 <button
                   onClick={() => handleOAuth('github')}
-                  className="flex items-center justify-center gap-2 bg-gray-800 hover:bg-gray-750 border border-gray-700 hover:border-gray-600 rounded-xl py-2.5 text-sm font-medium transition"
+                  className="flex items-center justify-center gap-2 bg-white hover:bg-gray-50 border border-gray-300 hover:border-gray-400 rounded-xl py-2.5 text-sm font-medium transition text-gray-700"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
                   GitHub
@@ -204,9 +201,9 @@ function AuthForm() {
               </div>
 
               <div className="flex items-center gap-3 mb-5">
-                <div className="flex-1 h-px bg-gray-800" />
-                <span className="text-xs text-gray-600">or continue with email</span>
-                <div className="flex-1 h-px bg-gray-800" />
+                <div className="flex-1 h-px bg-gray-200" />
+                <span className="text-xs text-gray-400">or continue with email</span>
+                <div className="flex-1 h-px bg-gray-200" />
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-3">
@@ -216,7 +213,7 @@ function AuthForm() {
                     placeholder="Your name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-violet-500 transition placeholder-gray-600"
+                    className="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition placeholder-gray-400 text-gray-900"
                     required
                   />
                 )}
@@ -225,7 +222,7 @@ function AuthForm() {
                   placeholder="Email address"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-violet-500 transition placeholder-gray-600"
+                  className="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition placeholder-gray-400 text-gray-900"
                   required
                 />
                 <div className="relative">
@@ -234,25 +231,25 @@ function AuthForm() {
                     placeholder="Password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 pr-11 text-sm focus:outline-none focus:border-violet-500 transition placeholder-gray-600"
+                    className="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 pr-11 text-sm focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition placeholder-gray-400 text-gray-900"
                     required
                     minLength={6}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
                   >
                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
 
-                {error && <p className="text-sm text-red-400">{error}</p>}
+                {error && <p className="text-sm text-red-600">{error}</p>}
 
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition flex items-center justify-center gap-2 mt-1"
+                  className="w-full bg-violet-600 hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition flex items-center justify-center gap-2 mt-1"
                 >
                   {loading ? (
                     <Loader2 size={16} className="animate-spin" />
@@ -267,7 +264,6 @@ function AuthForm() {
           )}
         </div>
 
-        {/* Toggle mode */}
         {step === 'form' && (
           <p className="text-center text-sm text-gray-500 mt-5">
             {mode === 'signin' ? "Don't have an account? " : 'Already have an account? '}
@@ -276,7 +272,7 @@ function AuthForm() {
                 setMode(mode === 'signin' ? 'signup' : 'signin');
                 setError('');
               }}
-              className="text-violet-400 hover:text-violet-300 transition font-medium"
+              className="text-violet-600 hover:text-violet-700 transition font-medium"
             >
               {mode === 'signin' ? 'Sign up' : 'Sign in'}
             </button>
@@ -287,14 +283,11 @@ function AuthForm() {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Page — wrapped in Suspense for useSearchParams
-// ---------------------------------------------------------------------------
 export default function AuthPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <Loader2 size={28} className="text-violet-400 animate-spin" />
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <Loader2 size={28} className="text-violet-600 animate-spin" />
       </div>
     }>
       <AuthForm />

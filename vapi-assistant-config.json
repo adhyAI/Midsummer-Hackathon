@@ -1,5 +1,5 @@
 {
-  "name": "ArchitectAI FDE",
+  "name": "Vapi FDE Team",
   "voice": {
     "provider": "11labs",
     "voiceId": "burt"
@@ -7,30 +7,50 @@
   "model": {
     "provider": "openai",
     "model": "gpt-4o",
-    "systemPrompt": "You are Alex, a Senior Forward-Deployed Engineer at ArchitectAI. You are on a live support call with a SaaS customer. Your colleague Sarah (Customer Success) sometimes chimes in.\n\nYour job is to diagnose database performance problems. When the user mentions connection limits or dropped transactions, ask them to confirm they have uploaded their schema image to the dashboard. Once confirmed, call the analyze_architecture tool immediately.\n\nBe concise, technical, and friendly. Keep responses under 2 sentences unless the user asks for detail.",
+    "systemPrompt": "You are Alex, a Senior Forward-Deployed Engineer at Vapi. You are on a live support call with a Vapi customer. Your colleague Sarah (Customer Success) sometimes chimes in.\n\nYour job is to help customers succeed with the Vapi platform — answering questions about features, pricing, SDKs, configuration, troubleshooting, and integration patterns.\n\nWhen a user asks ANY question about Vapi, ALWAYS call search_knowledge_base first to retrieve accurate information before answering.\n\nWhen the user mentions they want to review a database schema or integration architecture, call analyze_architecture.\n\nBe concise, technical, and friendly. Keep voice responses under 2 sentences unless the user asks for detail.",
     "tools": [
       {
         "type": "function",
         "function": {
+          "name": "search_knowledge_base",
+          "description": "Search the Vapi knowledge base to answer questions about Vapi's platform, features, pricing, SDKs, assistants, tool calling, webhooks, phone numbers, latency, and best practices. Call this whenever a user asks any question about Vapi.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "query": {
+                "type": "string",
+                "description": "The user's question or topic to search in the knowledge base, e.g. 'how do I reduce latency' or 'what is the pricing'"
+              }
+            },
+            "required": ["query"]
+          }
+        },
+        "server": {
+          "url": "https://ag4de6xt.insforge.site/api/vapi-webhook"
+        }
+      },
+      {
+        "type": "function",
+        "function": {
           "name": "analyze_architecture",
-          "description": "Analyse the customer's uploaded database schema image, identify connection pooling and indexing issues, generate a SQL migration fix, and push it to their dashboard.",
+          "description": "Analyse the customer's uploaded database schema or architecture image, identify issues, generate a SQL migration fix, and push it to their dashboard.",
           "parameters": {
             "type": "object",
             "properties": {
               "user_issue": {
                 "type": "string",
-                "description": "A brief description of the problem the user reported (e.g. 'hitting max connection limits, transactions dropping')."
+                "description": "A brief description of the problem the user reported."
               },
               "schema_image_url": {
                 "type": "string",
-                "description": "The public URL of the schema image the user uploaded. Use the value from the variableValues.schema_image_url variable if available."
+                "description": "The public URL of the schema image the user uploaded. Use the value from variableValues.schema_image_url if available."
               }
             },
             "required": ["user_issue", "schema_image_url"]
           }
         },
         "server": {
-          "url": "https://YOUR_DEPLOYMENT_URL/api/vapi-webhook"
+          "url": "https://ag4de6xt.insforge.site/api/vapi-webhook"
         }
       }
     ]

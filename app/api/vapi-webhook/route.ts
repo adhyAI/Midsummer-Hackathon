@@ -1,21 +1,20 @@
 import { NextRequest } from 'next/server';
 import OpenAI from 'openai';
 import { createAdminClient } from '@insforge/sdk';
+import { formatKBAnswer } from '../../../lib/vapi-knowledge';
 
 const VISION_MODEL = 'Qwen/Qwen2-VL-72B-Instruct';
 
 const FALLBACK_SCHEMA_URL =
   'https://raw.githubusercontent.com/bregman-arie/devops-exercises/master/images/db_schema_example.png';
 
-const SYSTEM_PROMPT = `You are an Elite Enterprise Tech Team. You embody two personas: Sarah (Customer Success) and Alex (Senior Database FDE).
-The user is currently speaking to you and uploading a database schema image.
+const SYSTEM_PROMPT = `You are Alex, a Senior Forward-Deployed Engineer at Vapi. You are on a live call helping a customer review their integration.
 
-Context: The user states they are hitting max connection limits and dropping transactions.
-Your Task: Look at the provided schema image. Identify that it lacks a PgBouncer layer and has unindexed foreign keys causing slow queries.
+Look at the provided schema image. Identify issues such as missing connection pooling, unindexed foreign keys, or other performance problems.
 
 Output Format Constraint: You must output a valid JSON object with exactly two keys:
 1. "spoken_response": A short, 2-sentence conversational response spoken by Alex explaining the problem and stating that a script is being pushed to their dashboard.
-2. "sql_fix": The actual raw SQL migration string that creates the necessary INDEXes based on their schema image. Do not use markdown backticks in this field.
+2. "sql_fix": The actual raw SQL migration string with fixes. Do not use markdown backticks in this field.
 
 Respond with only the JSON object. No preamble, no explanation outside the JSON.`;
 
@@ -57,11 +56,21 @@ export async function POST(req: NextRequest) {
   }
 
   const fn = toolCall.function as Record<string, unknown>;
+  const toolCallId = toolCall.id as string;
+
+  // ── search_knowledge_base ──────────────────────────────────────────────────
+  if (fn.name === 'search_knowledge_base') {
+    const kbArgs = (
+      typeof fn.arguments === 'string' ? JSON.parse(fn.arguments) : fn.arguments
+    ) as { query?: string };
+    const answer = formatKBAnswer(kbArgs.query ?? '');
+    return Response.json({ results: [{ toolCallId, result: answer }] });
+  }
+
   if (fn.name !== 'analyze_architecture') {
     return Response.json({ received: true });
   }
 
-  const toolCallId = toolCall.id as string;
   const args = (
     typeof fn.arguments === 'string' ? JSON.parse(fn.arguments) : fn.arguments
   ) as { user_issue?: string; schema_image_url?: string };

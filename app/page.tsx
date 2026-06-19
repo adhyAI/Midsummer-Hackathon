@@ -6,11 +6,17 @@ import { useEffect } from 'react';
 import { useAuth } from './providers';
 import { Mic, Zap, Shield, ArrowRight, Database, Code2, MessageSquare, BookOpen, Phone } from 'lucide-react';
 
-function VapiLogo() {
+function FaduLogo({ size = 28 }: { size?: number }) {
   return (
-    <svg width="22" height="22" viewBox="0 0 32 32" fill="none">
-      <rect width="32" height="32" rx="8" fill="#5865F2"/>
-      <path d="M8 10h16M8 16h10M8 22h13" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
+    <svg width={size} height={size} viewBox="0 0 36 36" fill="none">
+      <rect width="36" height="36" rx="10" fill="url(#fg)"/>
+      <defs>
+        <linearGradient id="fg" x1="0" y1="0" x2="36" y2="36" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#7C3AED"/>
+          <stop offset="1" stopColor="#06B6D4"/>
+        </linearGradient>
+      </defs>
+      <text x="18" y="25" textAnchor="middle" fontFamily="system-ui, sans-serif" fontWeight="800" fontSize="18" fill="white">F</text>
     </svg>
   );
 }
@@ -28,10 +34,10 @@ export default function Landing() {
       {/* Nav */}
       <nav className="border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10 bg-white/95 backdrop-blur-sm">
         <div className="flex items-center gap-2.5">
-          <VapiLogo />
+          <FaduLogo />
           <div>
-            <span className="font-bold text-sm tracking-tight text-gray-900">Vapi FDE Team</span>
-            <span className="ml-2 text-[10px] font-medium text-violet-600 bg-violet-50 border border-violet-200 px-1.5 py-0.5 rounded-full">Live Support</span>
+            <span className="font-bold text-sm tracking-tight text-gray-900">Fadu</span>
+            <span className="ml-2 text-[10px] font-medium text-violet-600 bg-violet-50 border border-violet-200 px-1.5 py-0.5 rounded-full">The Forward Avengers</span>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -64,15 +70,16 @@ export default function Landing() {
           </div>
 
           <h1 className="text-5xl sm:text-6xl font-bold tracking-tight mb-6 leading-tight text-gray-900">
-            Your dedicated{' '}
+            Meet{' '}
             <span className="bg-gradient-to-r from-violet-600 to-cyan-500 bg-clip-text text-transparent">
-              Vapi FDE team.
+              Fadu.
             </span>
+            <br />The Forward Avengers.
           </h1>
 
           <p className="text-lg text-gray-500 mb-10 max-w-xl mx-auto leading-relaxed">
-            Talk to Vapi&apos;s Forward-Deployed Engineering team over live voice. Get expert answers on
-            pricing, SDKs, assistant config, webhooks, and production troubleshooting — instantly.
+            Vapi&apos;s AI-powered Forward-Deployed team — on call over live voice.
+            Get expert answers on pricing, SDKs, assistant config, webhooks, and production troubleshooting — instantly.
           </p>
 
           <div className="flex items-center justify-center gap-4 flex-wrap">

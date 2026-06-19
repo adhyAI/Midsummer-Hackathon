@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ArchitectAI — Forward-Deployed Consultant",
-  description: "AI-powered database architecture review over live voice",
+  title: "Fadu — The Forward Avengers",
+  description: "Vapi's Forward Avengers — live voice AI support for your Vapi integration",
 };
 
 export default function RootLayout({

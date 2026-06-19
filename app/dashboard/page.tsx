@@ -52,11 +52,17 @@ function saveSessions(sessions: StoredSession[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions.slice(0, MAX_SESSIONS)));
 }
 
-function VapiLogo() {
+function FaduLogo() {
   return (
-    <svg width="18" height="18" viewBox="0 0 32 32" fill="none">
-      <rect width="32" height="32" rx="6" fill="#5865F2"/>
-      <path d="M8 10h16M8 16h10M8 22h13" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
+    <svg width="24" height="24" viewBox="0 0 36 36" fill="none">
+      <rect width="36" height="36" rx="9" fill="url(#fgd)"/>
+      <defs>
+        <linearGradient id="fgd" x1="0" y1="0" x2="36" y2="36" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#7C3AED"/>
+          <stop offset="1" stopColor="#06B6D4"/>
+        </linearGradient>
+      </defs>
+      <text x="18" y="25" textAnchor="middle" fontFamily="system-ui, sans-serif" fontWeight="800" fontSize="18" fill="white">F</text>
     </svg>
   );
 }
@@ -330,8 +336,11 @@ export default function Dashboard() {
       {/* Nav */}
       <header className="border-b border-gray-200 px-5 h-12 flex items-center justify-between shrink-0 bg-white shadow-sm">
         <div className="flex items-center gap-2">
-          <VapiLogo />
-          <span className="font-semibold text-sm tracking-tight text-gray-900">Vapi FDE Team</span>
+          <FaduLogo />
+          <div className="leading-tight">
+            <span className="font-bold text-sm tracking-tight text-gray-900">Fadu</span>
+            <span className="text-[10px] text-gray-400 ml-1.5">The Forward Avengers</span>
+          </div>
           {callActive && (
             <span className="flex items-center gap-1 text-[11px] text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full ml-1">
               <Radio size={10} className="animate-pulse" /> Live

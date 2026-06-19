@@ -17,11 +17,17 @@ function GoogleIcon() {
   );
 }
 
-function VapiLogo() {
+function FaduLogo() {
   return (
-    <svg width="20" height="20" viewBox="0 0 32 32" fill="none">
-      <rect width="32" height="32" rx="8" fill="#5865F2"/>
-      <path d="M8 10h16M8 16h10M8 22h13" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
+    <svg width="32" height="32" viewBox="0 0 36 36" fill="none">
+      <rect width="36" height="36" rx="10" fill="url(#fga)"/>
+      <defs>
+        <linearGradient id="fga" x1="0" y1="0" x2="36" y2="36" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#7C3AED"/>
+          <stop offset="1" stopColor="#06B6D4"/>
+        </linearGradient>
+      </defs>
+      <text x="18" y="25" textAnchor="middle" fontFamily="system-ui, sans-serif" fontWeight="800" fontSize="18" fill="white">F</text>
     </svg>
   );
 }
@@ -115,8 +121,11 @@ function AuthForm() {
 
       {/* Logo */}
       <div className="flex items-center gap-2.5 mb-8">
-        <VapiLogo />
-        <span className="font-bold text-lg tracking-tight text-gray-900">Vapi FDE Team</span>
+        <FaduLogo />
+        <div>
+          <span className="font-bold text-lg tracking-tight text-gray-900">Fadu</span>
+          <span className="block text-[10px] text-violet-600 font-medium">The Forward Avengers</span>
+        </div>
       </div>
 
       <div className="w-full max-w-sm">

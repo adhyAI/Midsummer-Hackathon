@@ -48,7 +48,7 @@ export default function Dashboard() {
     {
       id: nextId(),
       role: 'system',
-      text: "Hi! I'm Alex, your Vapi FDE. Chat with me here or start a voice session on the right. I can answer questions about Vapi's platform, pricing, SDKs, and help troubleshoot your integration.",
+      text: "Welcome to the Vapi AI team. Start a voice session and the Deployment Manager will connect you with the right person — Alex (FDE), Sarah (Customer Success), or Jordan (Solutions Engineer).",
     },
   ]);
   const [inputText, setInputText] = useState('');
@@ -226,7 +226,7 @@ export default function Dashboard() {
     setMessages([{
       id: nextId(),
       role: 'system',
-      text: "New session started. I'm Alex, your Vapi FDE — ask me anything about Vapi, or upload a schema for architecture review.",
+      text: "New session started. The Deployment Manager will connect you with Alex (FDE), Sarah (Customer Success), or Jordan (Solutions Engineer) based on your needs.",
     }]);
     setInputText('');
     setSqlCode('');
@@ -396,8 +396,8 @@ export default function Dashboard() {
           {rightTab === 'voice' && (
             <div className="flex-1 flex flex-col items-center justify-center gap-8 p-8">
               <div className="text-center mb-2">
-                <p className="text-sm font-semibold text-gray-700">Talk to your Vapi FDE</p>
-                <p className="text-xs text-gray-400 mt-1">Ask about pricing, SDKs, latency, tool calling, and more</p>
+                <p className="text-sm font-semibold text-gray-700">Vapi AI Deployment Manager</p>
+                <p className="text-xs text-gray-400 mt-1">Routes you to Alex (FDE), Sarah (CS), or Jordan (Solutions) as needed</p>
               </div>
 
               {/* Mic button */}

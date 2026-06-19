@@ -6,7 +6,7 @@ import Vapi from '@vapi-ai/web';
 import { createClient } from '@insforge/sdk';
 import {
   Mic, MicOff, Upload, Loader2, Radio,
-  LogOut, User, Copy, Check, Send, Paperclip, Plus,
+  LogOut, User, Copy, Check, Send, Paperclip, Plus, History, X,
 } from 'lucide-react';
 import { useAuth, getInsforgeClient } from '../providers';
 
@@ -14,11 +14,43 @@ type MsgRole = 'user' | 'assistant' | 'system';
 type Message = { id: number; role: MsgRole; text: string };
 type RightTab = 'voice' | 'workspace';
 
+type StoredSession = {
+  num: number;
+  startedAt: string;
+  messages: Message[];
+  sqlCode: string;
+};
+
+const STORAGE_KEY = 'vapi-fde-sessions';
+const MAX_SESSIONS = 20;
+
 const FALLBACK_SCHEMA_URL =
   'https://raw.githubusercontent.com/bregman-arie/devops-exercises/master/images/db_schema_example.png';
 
 let msgId = 0;
 const nextId = () => ++msgId;
+
+function formatDate(iso: string) {
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function loadSessions(): StoredSession[] {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]') as StoredSession[];
+  } catch { return []; }
+}
+
+function saveSessions(sessions: StoredSession[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions.slice(0, MAX_SESSIONS)));
+}
 
 function VapiLogo() {
   return (
@@ -27,6 +59,12 @@ function VapiLogo() {
       <path d="M8 10h16M8 16h10M8 22h13" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
     </svg>
   );
+}
+
+function previewText(messages: Message[]) {
+  const first = messages.find((m) => m.role === 'user' || m.role === 'assistant');
+  if (!first) return 'Empty session';
+  return first.text.length > 60 ? first.text.slice(0, 57) + '…' : first.text;
 }
 
 export default function Dashboard() {
@@ -38,12 +76,17 @@ export default function Dashboard() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const imageUrlRef = useRef<string>(FALLBACK_SCHEMA_URL);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const sessionsDropdownRef = useRef<HTMLDivElement>(null);
 
   const [callActive, setCallActive] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
 
   const [sessionNum, setSessionNum] = useState(1);
+  const [sessionStart, setSessionStart] = useState(() => new Date().toISOString());
+  const [pastSessions, setPastSessions] = useState<StoredSession[]>([]);
+  const [showSessions, setShowSessions] = useState(false);
+
   const [messages, setMessages] = useState<Message[]>([
     {
       id: nextId(),
@@ -60,6 +103,22 @@ export default function Dashboard() {
   const [uploadPreview, setUploadPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // Load past sessions on mount
+  useEffect(() => {
+    setPastSessions(loadSessions());
+  }, []);
+
+  // Close sessions dropdown on outside click
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (sessionsDropdownRef.current && !sessionsDropdownRef.current.contains(e.target as Node)) {
+        setShowSessions(false);
+      }
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   useEffect(() => {
     if (!authLoading && !user) router.replace('/auth?mode=signin');
@@ -96,11 +155,7 @@ export default function Dashboard() {
         setSqlCode(payload.sql);
         setMessages((prev) => [
           ...prev,
-          {
-            id: nextId(),
-            role: 'assistant',
-            text: "I've pushed a migration script to your Workspace tab. Switch over to review and copy it.",
-          },
+          { id: nextId(), role: 'assistant', text: "I've pushed a migration script to your Workspace tab. Switch over to review and copy it." },
         ]);
       });
     }
@@ -138,6 +193,16 @@ export default function Dashboard() {
     return () => { vapi.stop(); };
   }, []);
 
+  const saveCurrentSession = useCallback((currentMessages: Message[], currentSqlCode: string, currentNum: number, currentStart: string) => {
+    const nonSystem = currentMessages.filter((m) => m.role !== 'system');
+    if (nonSystem.length === 0) return; // don't save empty sessions
+    const session: StoredSession = { num: currentNum, startedAt: currentStart, messages: currentMessages, sqlCode: currentSqlCode };
+    const existing = loadSessions();
+    const updated = [session, ...existing.filter((s) => s.num !== currentNum)];
+    saveSessions(updated);
+    setPastSessions(updated.slice(0, MAX_SESSIONS));
+  }, []);
+
   const toggleCall = useCallback(async () => {
     const vapi = vapiRef.current;
     if (!vapi) return;
@@ -165,21 +230,14 @@ export default function Dashboard() {
     await new Promise((r) => setTimeout(r, 600));
     setMessages((prev) => [
       ...prev,
-      {
-        id: nextId(),
-        role: 'assistant',
-        text: "Start a voice session on the right to talk this through with me live — I can answer Vapi questions, review your schema, and push fixes to your workspace.",
-      },
+      { id: nextId(), role: 'assistant', text: "Start a voice session on the right to talk this through live — I can answer Vapi questions, review your schema, and push fixes to your workspace." },
     ]);
     setSending(false);
   }, [inputText, sending, callActive]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendTextMessage();
-      }
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendTextMessage(); }
     },
     [sendTextMessage]
   );
@@ -196,16 +254,10 @@ export default function Dashboard() {
       const data = (await res.json()) as { url?: string };
       if (data.url) {
         setUploadedImageUrl(data.url);
-        setMessages((prev) => [
-          ...prev,
-          { id: nextId(), role: 'system', text: 'Schema uploaded. Start a voice session — Alex will analyse it and push a fix to your workspace.' },
-        ]);
+        setMessages((prev) => [...prev, { id: nextId(), role: 'system', text: 'Schema uploaded. Start a voice session — Alex will analyse it and push a fix to your workspace.' }]);
       }
-    } catch (err) {
-      console.error('Upload failed', err);
-    } finally {
-      setUploading(false);
-    }
+    } catch (err) { console.error('Upload failed', err); }
+    finally { setUploading(false); }
   }, []);
 
   const handleSignOut = useCallback(async () => {
@@ -222,19 +274,47 @@ export default function Dashboard() {
 
   const newSession = useCallback(() => {
     if (vapiRef.current && callActive) vapiRef.current.stop();
-    setSessionNum((n) => n + 1);
-    setMessages([{
-      id: nextId(),
-      role: 'system',
-      text: "New session started. The Deployment Manager will connect you with Alex (FDE), Sarah (Customer Success), or Jordan (Solutions Engineer) based on your needs.",
-    }]);
+    // save current before resetting
+    setMessages((prev) => {
+      setSessionNum((n) => {
+        setSqlCode((sql) => {
+          saveCurrentSession(prev, sql, n, sessionStart);
+          return '';
+        });
+        return n + 1;
+      });
+      return prev;
+    });
+    const now = new Date().toISOString();
+    setSessionStart(now);
+    setMessages([{ id: nextId(), role: 'system', text: "New session started. The Deployment Manager will connect you with the right Vapi team member." }]);
     setInputText('');
     setSqlCode('');
     setUploadedImageUrl(null);
     setUploadPreview(null);
     setRightTab('voice');
     if (fileInputRef.current) fileInputRef.current.value = '';
+  }, [callActive, sessionStart, saveCurrentSession]);
+
+  const restoreSession = useCallback((session: StoredSession) => {
+    if (vapiRef.current && callActive) vapiRef.current.stop();
+    setSessionNum(session.num);
+    setSessionStart(session.startedAt);
+    setMessages(session.messages);
+    setSqlCode(session.sqlCode);
+    setUploadedImageUrl(null);
+    setUploadPreview(null);
+    setRightTab(session.sqlCode ? 'workspace' : 'voice');
+    setShowSessions(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   }, [callActive]);
+
+  const deleteSession = useCallback((num: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated = loadSessions().filter((s) => s.num !== num);
+    saveSessions(updated);
+    setPastSessions(updated);
+  }, []);
 
   if (authLoading) {
     return (
@@ -274,18 +354,86 @@ export default function Dashboard() {
         {/* LEFT — Chat */}
         <div className="w-1/2 flex flex-col border-r border-gray-200 overflow-hidden bg-white">
 
+          {/* Chat header */}
           <div className="px-4 h-10 border-b border-gray-100 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">Chat with Alex</span>
+              <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">Session</span>
               <span className="text-[10px] text-gray-300 font-mono">#{sessionNum}</span>
             </div>
-            <button
-              onClick={newSession}
-              className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-violet-600 border border-gray-200 hover:border-violet-300 rounded-lg px-2 py-1 transition"
-              title="Start a new session"
-            >
-              <Plus size={11} /> New session
-            </button>
+            <div className="flex items-center gap-1.5">
+              {/* Sessions dropdown */}
+              <div className="relative" ref={sessionsDropdownRef}>
+                <button
+                  onClick={() => setShowSessions((v) => !v)}
+                  className={`flex items-center gap-1 text-[11px] border rounded-lg px-2 py-1 transition ${
+                    showSessions
+                      ? 'text-violet-700 bg-violet-50 border-violet-300'
+                      : 'text-gray-400 hover:text-violet-600 border-gray-200 hover:border-violet-300'
+                  }`}
+                >
+                  <History size={11} />
+                  History
+                  {pastSessions.length > 0 && (
+                    <span className="ml-0.5 bg-violet-100 text-violet-700 text-[9px] font-bold rounded-full px-1">
+                      {pastSessions.length}
+                    </span>
+                  )}
+                </button>
+
+                {showSessions && (
+                  <div className="absolute right-0 top-full mt-1 w-72 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
+                    <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+                      <span className="text-xs font-semibold text-gray-500">Past sessions</span>
+                      <button onClick={() => setShowSessions(false)} className="text-gray-400 hover:text-gray-600">
+                        <X size={12} />
+                      </button>
+                    </div>
+                    {pastSessions.length === 0 ? (
+                      <div className="px-4 py-6 text-center text-xs text-gray-400">
+                        No past sessions yet.<br/>Start a new session to save one.
+                      </div>
+                    ) : (
+                      <div className="max-h-72 overflow-y-auto">
+                        {pastSessions.map((s) => (
+                          <button
+                            key={s.num}
+                            onClick={() => restoreSession(s)}
+                            className="w-full text-left px-3 py-2.5 hover:bg-gray-50 transition border-b border-gray-100 last:border-0 group flex items-start gap-2"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <span className="text-[10px] font-mono text-violet-600 font-semibold">#{s.num}</span>
+                                <span className="text-[10px] text-gray-400">{formatDate(s.startedAt)}</span>
+                                {s.sqlCode && (
+                                  <span className="text-[9px] bg-green-50 text-green-600 border border-green-200 rounded-full px-1.5">SQL</span>
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-600 truncate">{previewText(s.messages)}</p>
+                            </div>
+                            <button
+                              onClick={(e) => deleteSession(s.num, e)}
+                              className="shrink-0 text-gray-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition mt-0.5"
+                              title="Delete session"
+                            >
+                              <X size={11} />
+                            </button>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* New session button */}
+              <button
+                onClick={newSession}
+                className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-violet-600 border border-gray-200 hover:border-violet-300 rounded-lg px-2 py-1 transition"
+                title="Start a new session"
+              >
+                <Plus size={11} /> New
+              </button>
+            </div>
           </div>
 
           {/* Messages */}
@@ -301,22 +449,15 @@ export default function Dashboard() {
                 );
               }
               return (
-                <div
-                  key={msg.id}
-                  className={`flex gap-2.5 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
+                <div key={msg.id} className={`flex gap-2.5 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   {msg.role === 'assistant' && (
-                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center shrink-0 mt-0.5 text-[9px] font-bold text-white">
-                      AI
-                    </div>
+                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center shrink-0 mt-0.5 text-[9px] font-bold text-white">AI</div>
                   )}
-                  <div
-                    className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
-                      msg.role === 'user'
-                        ? 'bg-violet-600 text-white rounded-tr-sm'
-                        : 'bg-gray-100 text-gray-800 rounded-tl-sm border border-gray-200'
-                    }`}
-                  >
+                  <div className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
+                    msg.role === 'user'
+                      ? 'bg-violet-600 text-white rounded-tr-sm'
+                      : 'bg-gray-100 text-gray-800 rounded-tl-sm border border-gray-200'
+                  }`}>
                     {msg.text}
                   </div>
                 </div>
@@ -400,11 +541,8 @@ export default function Dashboard() {
                 <p className="text-xs text-gray-400 mt-1">Routes you to Alex (FDE), Sarah (CS), or Jordan (Solutions) as needed</p>
               </div>
 
-              {/* Mic button */}
               <div className="relative">
-                {callActive && (
-                  <div className="absolute inset-0 rounded-full bg-violet-400/20 animate-ping" />
-                )}
+                {callActive && <div className="absolute inset-0 rounded-full bg-violet-400/20 animate-ping" />}
                 <button
                   onClick={toggleCall}
                   disabled={connecting}
@@ -416,44 +554,31 @@ export default function Dashboard() {
                       : 'bg-violet-600 hover:bg-violet-700 shadow-violet-600/30 hover:scale-105'
                   }`}
                 >
-                  {connecting ? (
-                    <Loader2 size={32} className="animate-spin text-white" />
-                  ) : callActive ? (
-                    <MicOff size={32} className="text-white" />
-                  ) : (
-                    <Mic size={32} className="text-white" />
-                  )}
+                  {connecting ? <Loader2 size={32} className="animate-spin text-white" />
+                    : callActive ? <MicOff size={32} className="text-white" />
+                    : <Mic size={32} className="text-white" />}
                 </button>
               </div>
 
-              {/* Status */}
               <div className="text-center">
                 <p className="text-base font-semibold text-gray-800">
                   {callActive ? 'Session active' : connecting ? 'Connecting…' : 'Ready to connect'}
                 </p>
                 <p className="text-sm text-gray-400 mt-1">
-                  {callActive
-                    ? 'Click the mic to end the session'
-                    : connecting
-                    ? 'Setting up secure voice connection…'
-                    : 'Click the mic to start talking with Alex'}
+                  {callActive ? 'Click the mic to end the session'
+                    : connecting ? 'Setting up secure voice connection…'
+                    : 'Click the mic to start talking'}
                 </p>
               </div>
 
-              {/* Speaking wave */}
               {isSpeaking && (
                 <div className="flex items-end gap-[4px]">
                   {[14, 22, 18, 28, 16, 24, 12].map((h, n) => (
-                    <span
-                      key={n}
-                      className="w-[4px] rounded-full bg-violet-500 animate-bounce"
-                      style={{ height: h, animationDelay: `${n * 0.07}s` }}
-                    />
+                    <span key={n} className="w-[4px] rounded-full bg-violet-500 animate-bounce" style={{ height: h, animationDelay: `${n * 0.07}s` }} />
                   ))}
                 </div>
               )}
 
-              {/* Schema shortcut */}
               {!uploadedImageUrl ? (
                 <button
                   onClick={() => { setRightTab('workspace'); fileInputRef.current?.click(); }}
@@ -473,15 +598,12 @@ export default function Dashboard() {
           {/* Workspace tab */}
           {rightTab === 'workspace' && (
             <div className="flex-1 flex flex-col gap-3 p-4 overflow-hidden">
-              {/* Schema upload */}
               <div className="shrink-0">
                 <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400 mb-2">Schema Image</p>
                 <div
                   onClick={() => fileInputRef.current?.click()}
                   className={`relative border border-dashed rounded-xl cursor-pointer transition-all group overflow-hidden ${
-                    uploadPreview
-                      ? 'border-gray-300 h-36'
-                      : 'border-gray-300 hover:border-violet-400 hover:bg-violet-50 h-24 flex items-center justify-center gap-3'
+                    uploadPreview ? 'border-gray-300 h-36' : 'border-gray-300 hover:border-violet-400 hover:bg-violet-50 h-24 flex items-center justify-center gap-3'
                   }`}
                 >
                   {uploadPreview ? (
@@ -504,7 +626,6 @@ export default function Dashboard() {
 
               <div className="border-t border-gray-200 shrink-0" />
 
-              {/* SQL output */}
               <div className="flex-1 flex flex-col gap-2 overflow-hidden">
                 <div className="flex items-center justify-between shrink-0">
                   <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">Generated Migration</p>
@@ -515,7 +636,6 @@ export default function Dashboard() {
                     </button>
                   )}
                 </div>
-
                 {sqlCode ? (
                   <pre className="flex-1 overflow-auto bg-gray-900 border border-gray-300 rounded-xl p-4 text-sm text-green-300 font-mono leading-relaxed whitespace-pre-wrap shadow-inner">
                     {sqlCode}

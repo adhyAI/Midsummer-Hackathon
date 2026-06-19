@@ -6,7 +6,7 @@ import Vapi from '@vapi-ai/web';
 import { createClient } from '@insforge/sdk';
 import {
   Mic, MicOff, Upload, Loader2, Radio,
-  LogOut, User, Copy, Check, Send, Paperclip,
+  LogOut, User, Copy, Check, Send, Paperclip, Plus,
 } from 'lucide-react';
 import { useAuth, getInsforgeClient } from '../providers';
 
@@ -43,6 +43,7 @@ export default function Dashboard() {
   const [connecting, setConnecting] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
 
+  const [sessionNum, setSessionNum] = useState(1);
   const [messages, setMessages] = useState<Message[]>([
     {
       id: nextId(),
@@ -219,6 +220,22 @@ export default function Dashboard() {
     setTimeout(() => setCopied(false), 2000);
   }, [sqlCode]);
 
+  const newSession = useCallback(() => {
+    if (vapiRef.current && callActive) vapiRef.current.stop();
+    setSessionNum((n) => n + 1);
+    setMessages([{
+      id: nextId(),
+      role: 'system',
+      text: "New session started. I'm Alex, your Vapi FDE — ask me anything about Vapi, or upload a schema for architecture review.",
+    }]);
+    setInputText('');
+    setSqlCode('');
+    setUploadedImageUrl(null);
+    setUploadPreview(null);
+    setRightTab('voice');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }, [callActive]);
+
   if (authLoading) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
@@ -257,8 +274,18 @@ export default function Dashboard() {
         {/* LEFT — Chat */}
         <div className="w-1/2 flex flex-col border-r border-gray-200 overflow-hidden bg-white">
 
-          <div className="px-4 h-10 border-b border-gray-100 flex items-center shrink-0">
-            <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">Chat with Alex</span>
+          <div className="px-4 h-10 border-b border-gray-100 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">Chat with Alex</span>
+              <span className="text-[10px] text-gray-300 font-mono">#{sessionNum}</span>
+            </div>
+            <button
+              onClick={newSession}
+              className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-violet-600 border border-gray-200 hover:border-violet-300 rounded-lg px-2 py-1 transition"
+              title="Start a new session"
+            >
+              <Plus size={11} /> New session
+            </button>
           </div>
 
           {/* Messages */}

@@ -1,0 +1,51 @@
+{
+  "name": "ArchitectAI FDE",
+  "voice": {
+    "provider": "11labs",
+    "voiceId": "burt"
+  },
+  "model": {
+    "provider": "openai",
+    "model": "gpt-4o",
+    "systemPrompt": "You are Alex, a Senior Forward-Deployed Engineer at ArchitectAI. You are on a live support call with a SaaS customer. Your colleague Sarah (Customer Success) sometimes chimes in.\n\nYour job is to diagnose database performance problems. When the user mentions connection limits or dropped transactions, ask them to confirm they have uploaded their schema image to the dashboard. Once confirmed, call the analyze_architecture tool immediately.\n\nBe concise, technical, and friendly. Keep responses under 2 sentences unless the user asks for detail.",
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "analyze_architecture",
+          "description": "Analyse the customer's uploaded database schema image, identify connection pooling and indexing issues, generate a SQL migration fix, and push it to their dashboard.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "user_issue": {
+                "type": "string",
+                "description": "A brief description of the problem the user reported (e.g. 'hitting max connection limits, transactions dropping')."
+              },
+              "schema_image_url": {
+                "type": "string",
+                "description": "The public URL of the schema image the user uploaded. Use the value from the variableValues.schema_image_url variable if available."
+              }
+            },
+            "required": ["user_issue", "schema_image_url"]
+          }
+        },
+        "server": {
+          "url": "https://YOUR_DEPLOYMENT_URL/api/vapi-webhook"
+        }
+      }
+    ]
+  },
+  "transcriber": {
+    "provider": "deepgram",
+    "model": "nova-2",
+    "language": "en"
+  },
+  "silenceTimeoutSeconds": 30,
+  "endCallFunctionEnabled": false,
+  "backgroundSound": "off",
+  "backchannelingEnabled": false,
+  "backgroundDenoisingEnabled": true,
+  "turnDetection": {
+    "onNoPunctuationSeconds": 0.8
+  }
+}
